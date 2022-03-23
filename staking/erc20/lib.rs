@@ -96,7 +96,7 @@ mod erc20 {
 
         /// mint erc20-token to caller.
         #[ink(message)]
-        pub fn mint(&mut self, _amount: Balance) -> Result<()>{
+        pub fn mint(&mut self, _amount: Balance) -> Result<()> {
             let caller = Self::env().caller();
             let pre_balance = self.balance_of_impl(&caller);
 
@@ -118,7 +118,7 @@ mod erc20 {
             let pre_balance = self.balance_of_impl(&caller);
 
             if pre_balance < _amount {
-                return Err(Error::InsufficientBalance)
+                return Err(Error::InsufficientBalance);
             }
             self.balances.insert(&caller, &(pre_balance - _amount));
             // self.name = name;
@@ -269,7 +269,7 @@ mod erc20 {
             let caller = self.env().caller();
             let allowance = self.allowance_impl(&from, &caller);
             if allowance < value {
-                return Err(Error::InsufficientAllowance)
+                return Err(Error::InsufficientAllowance);
             }
             self.transfer_from_to(&from, &to, value)?;
             self.allowances
@@ -293,7 +293,7 @@ mod erc20 {
         ) -> Result<()> {
             let from_balance = self.balance_of_impl(from);
             if from_balance < value {
-                return Err(Error::InsufficientBalance)
+                return Err(Error::InsufficientBalance);
             }
 
             self.balances.insert(from, &(from_balance - value));
@@ -698,7 +698,7 @@ mod erc20 {
             let len_encoded = encoded.len();
             if len_encoded <= len_result {
                 result.as_mut()[..len_encoded].copy_from_slice(&encoded);
-                return result
+                return result;
             }
             let mut hash_output =
                 <<Blake2x256 as HashOutput>::Type as Default>::default();

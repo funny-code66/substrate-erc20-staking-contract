@@ -1,19 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use self::erc20::{
-    Erc20,
-    Erc20Ref,
-};
+pub use self::erc20::{Erc20, Erc20Ref};
 
 use ink_lang as ink;
 
 #[ink::contract]
 mod erc20 {
-    use ink_storage::{
-        traits::SpreadAllocate,
-        Mapping,
-    };
-    use ink_prelude::string::String;
+    use ink_prelude::{vec, vec::Vec};
+    use ink_storage::{traits::SpreadAllocate, Mapping};
 
     /// A simple ERC-20 contract.
     #[ink(storage)]
@@ -75,7 +69,7 @@ mod erc20 {
     impl Erc20 {
         /// Creates a new ERC-20 contract with the specified initial supply.
         #[ink(constructor)]
-        pub fn new(/* name: String, symbol: String, */ initial_supply: Balance) -> Self {
+        pub fn new(/* name: String, symbol: String, */ initial_supply: Balance,) -> Self {
             // This call is required in order to correctly initialize the
             // `Mapping`s of our contract.
             ink_lang::utils::initialize_contract(|contract| {
@@ -84,7 +78,10 @@ mod erc20 {
         }
 
         /// Default initializes the ERC-20 contract with the specified initial supply.
-        fn new_init(&mut self, /* name: String, symbol: String, */ initial_supply: Balance) {
+        fn new_init(
+            &mut self,
+            /* name: String, symbol: String, */ initial_supply: Balance,
+        ) {
             let caller = Self::env().caller();
             self.balances.insert(&caller, &initial_supply);
             // self.name = name;
@@ -134,7 +131,7 @@ mod erc20 {
             Ok(())
         }
 
-/*         /// Returns the name of token.
+        /*         /// Returns the name of token.
         #[ink(message)]
         pub fn name(&self) -> String {
             self.name.clone()
@@ -233,7 +230,12 @@ mod erc20 {
         ///
         /// An `Approval` event is emitted.
         #[ink(message)]
-        pub fn approve_from_to(&mut self, from: AccountId, to: AccountId, value: Balance) -> Result<()> {
+        pub fn approve_from_to(
+            &mut self,
+            from: AccountId,
+            to: AccountId,
+            value: Balance,
+        ) -> Result<()> {
             self.allowances.insert((&from, &to), &value);
             self.env().emit_event(Approval {
                 owner: from,
@@ -355,29 +357,29 @@ mod erc20 {
             expected_to: Option<AccountId>,
             expected_value: Balance,
         ) {
-                let decoded_event = <Event as scale::Decode>::decode(&mut &event.data[..])
-                    .expect("encountered invalid contract event data buffer");
-                if let Event::Mint(Mint { to, value }) = decoded_event {
-                    assert_eq!(to, expected_to, "encountered invalid Mint.to");
-                    assert_eq!(value, expected_value, "encountered invalid Trasfer.value");
-                } else {
-                    panic!("encountered unexpected event kind: expected a Mint event")
-                }
-                let expected_topics = vec![
-                    encoded_into_hash(&PrefixedValue {
-                        value: b"Erc20::Mint",
-                        prefix: b"",
-                    }),
-                    encoded_into_hash(&PrefixedValue {
-                        prefix: b"Erc20::Mint::to",
-                        value: &expected_to,
-                    }),
-                    encoded_into_hash(&PrefixedValue {
-                        prefix: b"Erc20::Mint::value",
-                        value: &expected_value,
-                    }),
-                ];
-    
+            let decoded_event = <Event as scale::Decode>::decode(&mut &event.data[..])
+                .expect("encountered invalid contract event data buffer");
+            if let Event::Mint(Mint { to, value }) = decoded_event {
+                assert_eq!(to, expected_to, "encountered invalid Mint.to");
+                assert_eq!(value, expected_value, "encountered invalid Trasfer.value");
+            } else {
+                panic!("encountered unexpected event kind: expected a Mint event")
+            }
+            let expected_topics = vec![
+                encoded_into_hash(&PrefixedValue {
+                    value: b"Erc20::Mint",
+                    prefix: b"",
+                }),
+                encoded_into_hash(&PrefixedValue {
+                    prefix: b"Erc20::Mint::to",
+                    value: &expected_to,
+                }),
+                encoded_into_hash(&PrefixedValue {
+                    prefix: b"Erc20::Mint::value",
+                    value: &expected_value,
+                }),
+            ];
+
             let topics = event.topics.clone();
             for (n, (actual_topic, expected_topic)) in
                 topics.iter().zip(expected_topics).enumerate()
@@ -398,7 +400,10 @@ mod erc20 {
         #[ink::test]
         fn new_works() {
             // Constructor works.
-            let _erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */ 100);
+            let _erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */
+                100,
+            );
 
             // Transfer event triggered during initial construction.
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
@@ -416,7 +421,10 @@ mod erc20 {
         #[ink::test]
         fn total_supply_works() {
             // Constructor works.
-            let erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */ 100);
+            let erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */
+                100,
+            );
             // Transfer event triggered during initial construction.
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_transfer_event(
@@ -433,7 +441,10 @@ mod erc20 {
         #[ink::test]
         fn balance_of_works() {
             // Constructor works
-            let erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */ 100);
+            let erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */
+                100,
+            );
             // Transfer event triggered during initial construction
             let emitted_events = ink_env::test::recorded_events().collect::<Vec<_>>();
             assert_transfer_event(
@@ -453,7 +464,10 @@ mod erc20 {
         #[ink::test]
         fn mint_works() {
             // Constructor works.
-            let mut erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */ 100);
+            let mut erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */
+                100,
+            );
             // Transfer event triggered during initial construction.
             let accounts =
                 ink_env::test::default_accounts::<ink_env::DefaultEnvironment>();
@@ -477,11 +491,7 @@ mod erc20 {
                 100,
             );
             // Check the second mint event related to ERC-20.
-            assert_mint_event(
-                &emitted_events[1],
-                Some(AccountId::from([0x01; 32])),
-                25,
-            );
+            assert_mint_event(&emitted_events[1], Some(AccountId::from([0x01; 32])), 25);
             // Check the third transfer event relating to the actual trasfer.
             assert_transfer_event(
                 &emitted_events[2],
@@ -492,7 +502,10 @@ mod erc20 {
         }
         fn transfer_works() {
             // Constructor works.
-            let mut erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */ 100);
+            let mut erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */
+                100,
+            );
             // Transfer event triggered during initial construction.
             let accounts =
                 ink_env::test::default_accounts::<ink_env::DefaultEnvironment>();
@@ -524,7 +537,10 @@ mod erc20 {
         #[ink::test]
         fn invalid_transfer_should_fail() {
             // Constructor works.
-            let mut erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */ 100);
+            let mut erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */, */
+                100,
+            );
             let accounts =
                 ink_env::test::default_accounts::<ink_env::DefaultEnvironment>();
 
@@ -559,7 +575,10 @@ mod erc20 {
         #[ink::test]
         fn transfer_from_works() {
             // Constructor works.
-            let mut erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */ ,*/ 100);
+            let mut erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */ ,*/
+                100,
+            );
             // Transfer event triggered during initial construction.
             let accounts =
                 ink_env::test::default_accounts::<ink_env::DefaultEnvironment>();
@@ -608,7 +627,10 @@ mod erc20 {
 
         #[ink::test]
         fn allowance_must_not_change_on_failed_transfer() {
-            let mut erc20 = Erc20::new(/* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */ ,*/ 100);
+            let mut erc20 = Erc20::new(
+                /* "Invoker Token"/* .to_string() */, "IVK"/* .to_string() */ ,*/
+                100,
+            );
             let accounts =
                 ink_env::test::default_accounts::<ink_env::DefaultEnvironment>();
 
@@ -667,11 +689,7 @@ mod erc20 {
             T: scale::Encode,
         {
             use ink_env::{
-                hash::{
-                    Blake2x256,
-                    CryptoHash,
-                    HashOutput,
-                },
+                hash::{Blake2x256, CryptoHash, HashOutput},
                 Clear,
             };
             let mut result = Hash::clear();

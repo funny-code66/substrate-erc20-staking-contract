@@ -4,9 +4,9 @@ use ink_lang as ink;
 
 #[ink::contract]
 mod staking {
-    use erc20::{/* Erc20,  */Erc20Ref};
+    use erc20::Erc20Ref;
     use ink_env;
-    use ink_env::{call::FromAccountId,/*  DefaultEnvironment */};
+    use ink_env::call::FromAccountId;
     use ink_prelude::{
         // string::ToString,
         vec,
@@ -61,48 +61,6 @@ mod staking {
     }
 
     impl Staking {
-        /*
-        #[ink(constructor)]
-        pub fn new(rider_token_code_hash: Hash) -> Self {
-            // This call is required in order to correctly initialize the
-            // `Mapping`s of our contract.
-            ink_lang::utils::initialize_contract(|contract| {
-                Self::new_init(contract, rider_token_code_hash)
-            })
-        }
-        */
-
-        /**
-        @dev    Default Initialization.
-        @param  code hash of pre-deployed ERC20 contract.
-                this is available only after the deployment of ERC20 contract.
-        @note   Initialize the contract with default values.
-        */
-
-        /*
-        #[ink(constructor)]
-        pub fn new_init(account_id_erc20: AccountId) -> Self {
-            //
-            let total_balance = Self::env().balance();
-            let token =
-                Erc20Ref::new(/* "Invoker Token".to_string(), "IVK".to_string(),  */1000000)
-                .endowment(total_balance/2)
-                .code_hash(_rider_token_code_hash)
-                .salt_bytes(1u8.to_le_bytes())
-                .instantiate()
-                .expect("failed at instantiating the `erc20` contract");
-            let staking_time = 86400 * 5;
-            let block_time = 5;
-            Self {
-                staked: StorageHashMap::new(),
-                unstaked: StorageHashMap::new(),
-                staking_time,
-                block_time,
-                token,
-            }
-        }
-        */
-
         /// @dev    Default Initialization.
         /// @param  address of pre-deployed ERC20 contract.
         ///         this is available only after the deployment of ERC20 contract.
@@ -239,6 +197,7 @@ mod staking {
         #[ink(message)]
         pub fn claim(&mut self, _amount: Balance) {
             let caller = self.env().caller();
+            let me = self.env().account_id();
             if self.get_balance(caller) < _amount {
                 ink_env::debug_println!("{}", "Exceeds current unstakable");
                 return;
@@ -321,8 +280,8 @@ mod staking {
     }
 
     // Odded out Unit Test.
-    /// module and test functions are marked with a `#[test]` attribute.
-    /// The below code is technically just normal Rust code.
+    // module and test functions are marked with a `#[test]` attribute.
+    // The below code is technically just normal Rust code.
     #[cfg(test)]
     mod tests {
         /// Imports all the definitions from the outer scope so we can use them here.

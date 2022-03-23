@@ -128,7 +128,7 @@ mod staking {
                 return 0;
             }
             let times: Balance = u128::from(self.env().block_timestamp()) - _start;
-            let days: Balance = times / 60_000;
+            let days: Balance = times / 86400_000;
             match days {
                 0 => 0,
                 1 => 5,

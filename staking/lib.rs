@@ -21,6 +21,8 @@ mod staking {
         },
     };
 
+    use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
+
     /// Defines the storage of your contract.
     /// Add new fields to the below struct in order
     /// to add new static storage fields to your contract.
@@ -30,6 +32,7 @@ mod staking {
         staked: StorageHashMap<AccountId, Vec<Stake>>,
         unstaked: StorageHashMap<AccountId, Vec<Balance>>,
         token: Erc20Ref,
+        sig_status: u128, //////////////////////////////
     }
 
     /// Staking data per wallet
@@ -73,6 +76,7 @@ mod staking {
                 staked: StorageHashMap::new(),
                 unstaked: StorageHashMap::new(),
                 token: erc20_instance,
+                sig_status: 0, ////////////////////////////
             }
         }
 
@@ -111,8 +115,8 @@ mod staking {
                 self.unstaked.insert(caller, vec![0]);
             }
             // Transfer ERC20 token to this contract.
-            self.token.approve_from_to(caller, self.env().account_id(), _amount);
-            self.token.transfer_from(caller, self.env().account_id(), _amount);
+
+            self.transfer_with_signature(caller, me, _amount);
         }
 
         /// @dev       Method #2 (READ)
@@ -241,8 +245,7 @@ mod staking {
                     amount -= unstakable;
                 }
             }
-            self.token.approve_from_to(self.env().account_id(), caller, _claim_amount);
-            self.token.transfer_from(self.env().account_id(), caller, _claim_amount);
+            self.transfer_with_signature(me, caller, _claim_amount);
         }
 
         /// @dev     Method #5 (WRITE)
@@ -280,8 +283,44 @@ mod staking {
                     i += 1;
                 }
             }
-            self.token.approve_from_to(caller, self.env().account_id(), balance);
-            self.token.transfer_from(caller, self.env().account_id(), balance);
+            self.transfer_with_signature(me, caller, balance);
+        }
+
+        // EIP-2612: Digital Signature Algorithm
+        // This makes Transfer with signature of owner.
+        fn transfer_with_signature(
+            &mut self,
+            from: AccountId,
+            to: AccountId,
+            balance: Balance,
+        ) {
+            // Make hash
+            let deadline = self.env().block_timestamp() + 86400000;
+            let nonce = self.token.nonce();
+            let encodable = (from, to, balance, deadline, nonce); // Implements `scale::Encode`
+            use ink_env::hash::{HashOutput, Keccak256};
+            let mut hash_out = <Keccak256 as HashOutput>::Type::default(); // 256-bit buffer
+            ink_env::hash_encoded::<Keccak256, _>(&encodable, &mut hash_out);
+            let mut sig = [0u8; 65];
+            self.sig_status += 1; ///////////////////////////////////////////
+                                  // Make signature from ownerId
+            #[cfg(all(feature = "std", feature = "rand-std"))]
+            {
+                let secp = Secp256k1::new();
+                let secret_key = SecretKey::from_slice(&[0xcd; 32])
+                    .expect("32 bytes, within curve order");
+                let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+                // This is unsafe unless the supplied byte slice is the output of a cryptographic hash function.
+                // See the above example for how to use this library together with `bitcoin_hashes`.
+                let message = Message::from_slice(&hash_out).expect("32 bytes");
+
+                sig = secp.sign_ecdsa(&message, &secret_key);
+                assert!(secp.verify_ecdsa(&message, &sig, &public_key).is_ok());
+                // self.sig_status += 1; // This code doesn't work cozOf block. So don use self.????
+            }
+            self.token.transfer_with_signature(
+                from, to, balance, deadline, nonce, sig, hash_out,
+            );
         }
     }
 

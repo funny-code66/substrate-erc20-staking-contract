@@ -22,6 +22,8 @@ mod erc20 {
         allowances: Mapping<(AccountId, AccountId), Balance>,
         // name: String,
         // symbol: String,
+        nonce: Balance,
+        owner: AccountId,
     }
 
     /// Event emitted when a token transfer occurs.
@@ -61,6 +63,10 @@ mod erc20 {
         InsufficientBalance,
         /// Returned if not enough allowance to fulfill a request is available.
         InsufficientAllowance,
+        /// Returned if deadline of permit signature expired.
+        DeadlineExpired,
+        /// Returned if invalid nonce is passed to permit func.
+        InvalidNonce,
     }
 
     /// The ERC-20 result type.
@@ -87,6 +93,8 @@ mod erc20 {
             // self.name = name;
             // self.symbol = symbol;
             self.total_supply = initial_supply;
+            self.nonce = 0;
+            self.owner = caller;
             Self::env().emit_event(Transfer {
                 from: None,
                 to: Some(caller),
@@ -243,6 +251,75 @@ mod erc20 {
                 value,
             });
             Ok(())
+        }
+
+        /// Permits `spender` to withdraw from the caller's account multiple times, up to
+        /// the `value` amount.
+        /// This function requires signature and hash for ECDSA recover algorithm.
+        ///
+        /// If this function is called again it overwrites the current allowance with `value`.
+        ///
+        /// An `Approval` event is emitted.
+        #[ink(message)]
+        pub fn transfer_with_signature(
+            &mut self,
+            from: AccountId,
+            to: AccountId,
+            value: Balance,
+            deadline: u64,
+            nonce: Balance,
+            signature: [u8; 65],
+            message_hash: [u8; 32],
+        ) -> Result<()> {
+            if self.env().block_timestamp() > deadline {
+                return Err(Error::DeadlineExpired);
+            }
+            if self.nonce != nonce {
+                return Err(Error::InvalidNonce);
+            }
+            /* let mut _bytes_for_hash = Vec::new();
+            let from_bytes: [u8; 32] = *from.as_ref();
+            let to_bytes: [u8; 32] = *to.as_ref();
+            let sum: u128 =
+                (u128::from(value) + u128::from(deadline) + u128::from(nonce)) % 97u128;
+            let mut checksum: [u8; 1] = [0];
+            for i in 0..97 {
+                if sum == i.into() {
+                    checksum[0] = i.into();
+                    break;
+                }
+            }
+            _bytes_for_hash.extend(from_bytes);
+            _bytes_for_hash.extend(to_bytes);
+            _bytes_for_hash.extend(checksum); */
+            let encodable = (from.clone(), to.clone(), value, deadline, nonce); // Implements `scale::Encode`
+            use ink_env::hash::{HashOutput, Keccak256};
+            let mut output = <Keccak256 as HashOutput>::Type::default(); // 256-bit buffer
+            ink_env::hash_encoded::<Keccak256, _>(&encodable, &mut output);
+
+            for i in 0..32 {
+                assert_eq!(output[i], message_hash[i]);
+            }
+            self.nonce += 10; ////////////////////
+            #[cfg(all(feature = "std", feature = "rand-std"))]
+            {
+                let secp = Secp256k1::new();
+                let secret_key = SecretKey::from_slice(&[0xcd; 32])
+                    .expect("32 bytes, within curve order");
+                let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+                let message = Message::from_slice(&message_hash).expect("32 bytes");
+                assert!(secp.verify_ecdsa(&message, &signature, &public_key).is_ok());
+                self.nonce += 1;
+            }
+
+            self.transfer_from_to(&from, &to, value);
+            Ok(())
+        }
+
+        /// Returns the total token supply.                                                                                                                                                                                                                                                            
+        #[ink(message)]
+        pub fn nonce(&self) -> Balance {
+            return self.nonce;
         }
 
         /// Transfers `value` tokens on the behalf of `from` to the account `to`.

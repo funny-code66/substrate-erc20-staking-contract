@@ -29,8 +29,6 @@ mod staking {
     pub struct Staking {
         staked: StorageHashMap<AccountId, Vec<Stake>>,
         unstaked: StorageHashMap<AccountId, Vec<Balance>>,
-        staking_time: Balance,
-        block_time: Balance,
         token: Erc20Ref,
     }
 
@@ -71,14 +69,9 @@ mod staking {
             //
             // let address : AccountId = AccountId::decode(&mut ref_account32).unwrap_or_default();
             let erc20_instance = Erc20Ref::from_account_id(_erc20_account_id);
-
-            let staking_time = 86400 * 5;
-            let block_time = 5;
             Self {
                 staked: StorageHashMap::new(),
                 unstaked: StorageHashMap::new(),
-                staking_time,
-                block_time,
                 token: erc20_instance,
             }
         }
@@ -89,7 +82,8 @@ mod staking {
         #[ink(message)]
         pub fn stake(&mut self, _amount: Balance) {
             let caller = self.env().caller();
-            let current_block_number: Balance = self.env().block_number().into();
+            let me = self.env().account_id();
+            let current_block_timestamp: Balance = self.env().block_timestamp().into();
             if self.token.balance_of(caller) < _amount {
                 ink_env::debug_println!("{}", "Insufficient funds");
                 return;
@@ -98,14 +92,14 @@ mod staking {
             if self.staked.contains_key(&caller) {
                 let mut _staked = self.staked.get_mut(&caller).unwrap();
                 _staked.push(Stake {
-                    timestamp: current_block_number,
+                    timestamp: current_block_timestamp,
                     amount: _amount,
                 });
             } else {
                 self.staked.insert(
                     caller,
                     vec![Stake {
-                        timestamp: current_block_number,
+                        timestamp: current_block_timestamp,
                         amount: _amount,
                     }],
                 );
@@ -126,17 +120,19 @@ mod staking {
         /// @note      Stake up to 5 days. Each day within 5 has 10% increament than the day before.
         #[ink(message)]
         pub fn get_unstakable(&self, _start: Balance) -> Balance {
-            if u128::from(self.env().block_number()) < _start {
+            if u128::from(self.env().block_timestamp()) < _start {
                 return 0;
             }
-            let times: Balance = u128::from(self.env().block_number()) - _start;
-            let clocks: Balance = (times * self.block_time) / (self.staking_time / 5);
-            if clocks > 5 {
-                return 10;
-            } else if clocks == 0 {
-                return 0;
-            } else {
-                return 4 + clocks;
+            let times: Balance = u128::from(self.env().block_timestamp()) - _start;
+            let days: Balance = times / 60_000;
+            match days {
+                0 => 0,
+                1 => 5,
+                2 => 6,
+                3 => 7,
+                4 => 8,
+                5 => 9,
+                _ => 10,
             }
         }
 
@@ -150,11 +146,8 @@ mod staking {
             (0..length).for_each(|i| {
                 let staked_time: Balance = self.staked.get(&_addr).unwrap()[i].timestamp;
                 let staked_amount: Balance = self.staked.get(&_addr).unwrap()[i].amount;
-                balance = balance
-                    + self.get_unstakable(
-                        staked_time * staked_amount / 10
-                            - self.unstaked.get(&_addr).unwrap()[i],
-                    );
+                balance = balance + self.get_unstakable(staked_time) * staked_amount / 10
+                    - self.unstaked.get(&_addr).unwrap()[i];
             });
             return balance;
         }
@@ -180,7 +173,9 @@ mod staking {
         /// @return  Total balance of _addr's ERC20 token.
         #[ink(message)]
         pub fn get_staked_timestamp(&self, _addr: AccountId, _index: Balance) -> Balance {
-            return self.staked.get(&_addr).unwrap()[0].timestamp;
+            return self.staked.get(&_addr).unwrap()
+                [TryInto::<usize>::try_into(_index).ok().unwrap()]
+            .timestamp;
         }
 
         /// @dev     Method #3 (READ)
@@ -188,7 +183,17 @@ mod staking {
         /// @return  Total balance of _addr's ERC20 token.
         #[ink(message)]
         pub fn get_staked_amount(&self, _addr: AccountId, _index: Balance) -> Balance {
-            return self.staked.get(&_addr).unwrap()[0].amount;
+            return self.staked.get(&_addr).unwrap()
+                [TryInto::<usize>::try_into(_index).ok().unwrap()]
+            .amount;
+        }
+
+        /// @dev     Method #3 (READ)
+        /// @param   addr: AccountId
+        /// @return  Total balance of _addr's ERC20 token.
+        #[ink(message)]
+        pub fn get_sig_status(&self) -> u128 {
+            self.sig_status
         }
 
         /// @dev     Method #4 (WRITE)
@@ -246,6 +251,7 @@ mod staking {
         #[ink(message)]
         pub fn claim_all(&mut self) {
             let caller = self.env().caller();
+            let me = self.env().account_id();
             let balance: Balance = self.get_balance(caller);
             if balance <= 0 {
                 ink_env::debug_println!("{}", "No token to be staked");
@@ -341,8 +347,6 @@ mod staking {
             ];
             ink_env::debug_println!("{:?}", erc20_hash);
             let staking = Staking::new_init(erc20_hash.into());
-            assert_eq!(staking.staking_time, 86400 * 5);
-            assert_eq!(staking.block_time, 5);
         }
     }
 }
